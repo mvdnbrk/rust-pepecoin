@@ -12,7 +12,7 @@ use crate::prelude::*;
 
 use core::default::Default;
 
-use crate::hashes::hex::{self, HexIterator};
+use crate::hashes::hex::{self, HexIterator, FromHex};
 use crate::hashes::{Hash, sha256d};
 use crate::blockdata::opcodes;
 use crate::blockdata::script;
@@ -41,7 +41,7 @@ pub const WITNESS_SCALE_FACTOR: usize = 4;
 /// The maximum allowed number of signature check operations in a block
 pub const MAX_BLOCK_SIGOPS_COST: i64 = 80_000;
 /// Mainnet (bitcoin) pubkey address prefix.
-pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0x1e;
+pub const PUBKEY_ADDRESS_PREFIX_MAIN: u8 = 0x38;
 /// Mainnet (bitcoin) script address prefix.
 pub const SCRIPT_ADDRESS_PREFIX_MAIN: u8 = 0x16; // 0x05
 /// Test (tesnet, signet, regtest) pubkey address prefix.
@@ -106,26 +106,35 @@ fn bitcoin_genesis_tx() -> Transaction {
     ret
 }
 
+/// Constructs and returns the coinbase (and only) transaction of the Pepecoin genesis block
+fn pepecoin_genesis_tx() -> Transaction {
+    use crate::consensus::encode::deserialize;
+    let tx_hex = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff1004ffff001d0104084e696e746f6e6466ffffffff010058850c020000004341040184710fa689ad5023690c80f3a49c8f13f8d45b8c857fbcbc8bc4a8e4d3eb4b10f4d4604fa08dce601aaf0f470216fe1b51850b4acf21b179c45070ac7b03a9ac00000000";
+    deserialize(&Vec::from_hex(tx_hex).unwrap()).unwrap()
+}
+
 /// Constructs and returns the genesis block
 pub fn genesis_block(network: Network) -> Block {
-    let txdata = vec![bitcoin_genesis_tx()];
-    let hash: sha256d::Hash = txdata[0].txid().into();
-    let merkle_root = hash.into();
     match network {
         Network::Bitcoin => {
+            let txdata = vec![pepecoin_genesis_tx()];
+            let merkle_root = sha256d::Hash::from_hex("696ad20e2dd4365c7459b4a4a5af743d5e92c6da3229e6532cd605f6533f2a5b").unwrap().into();
             Block {
                 header: BlockHeader {
                     version: 1,
                     prev_blockhash: Hash::all_zeros(),
                     merkle_root,
-                    time: 1231006505,
-                    bits: 0x1d00ffff,
-                    nonce: 2083236893
+                    time: 1386325540,
+                    bits: 0x1e0ffff0,
+                    nonce: 99943
                 },
                 txdata,
             }
         }
         Network::Testnet => {
+            let txdata = vec![bitcoin_genesis_tx()];
+            let hash: sha256d::Hash = txdata[0].txid().into();
+            let merkle_root = hash.into();
             Block {
                 header: BlockHeader {
                     version: 1,
@@ -139,6 +148,9 @@ pub fn genesis_block(network: Network) -> Block {
             }
         }
         Network::Signet => {
+            let txdata = vec![bitcoin_genesis_tx()];
+            let hash: sha256d::Hash = txdata[0].txid().into();
+            let merkle_root = hash.into();
             Block {
                 header: BlockHeader {
                     version: 1,
@@ -152,6 +164,9 @@ pub fn genesis_block(network: Network) -> Block {
             }
         }
         Network::Regtest => {
+            let txdata = vec![bitcoin_genesis_tx()];
+            let hash: sha256d::Hash = txdata[0].txid().into();
+            let merkle_root = hash.into();
             Block {
                 header: BlockHeader {
                     version: 1,
@@ -168,7 +183,7 @@ pub fn genesis_block(network: Network) -> Block {
 }
 
 // Mainnet value can be verified at https://github.com/lightning/bolts/blob/master/00-introduction.md
-const GENESIS_BLOCK_HASH_BITCOIN: [u8; 32] = [111, 226, 140, 10, 182, 241, 179, 114, 193, 166, 162, 70, 174, 99, 247, 79, 147, 30, 131, 101, 225, 90, 8, 156, 104, 214, 25, 0, 0, 0, 0, 0];
+const GENESIS_BLOCK_HASH_BITCOIN: [u8; 32] = [127, 144, 200, 113, 246, 178, 67, 118, 65, 3, 54, 137, 3, 165, 223, 85, 105, 128, 26, 56, 83, 94, 135, 185, 55, 135, 72, 131, 133, 151, 38, 105];
 const GENESIS_BLOCK_HASH_TESTNET: [u8; 32] = [67, 73, 127, 215, 248, 38, 149, 113, 8, 244, 163, 15, 217, 206, 195, 174, 186, 121, 151, 32, 132, 233, 14, 173, 1, 234, 51, 9, 0, 0, 0, 0];
 const GENESIS_BLOCK_HASH_SIGNET: [u8; 32] = [246, 30, 238, 59, 99, 163, 128, 164, 119, 160, 99, 175, 50, 178, 187, 201, 124, 159, 249, 240, 31, 44, 66, 37, 233, 115, 152, 129, 8, 0, 0, 0];
 const GENESIS_BLOCK_HASH_REGTEST: [u8; 32] = [6, 34, 110, 70, 17, 26, 11, 89, 202, 175, 18, 96, 67, 235, 91, 191, 40, 195, 79, 58, 94, 51, 42, 31, 199, 178, 183, 60, 241, 136, 145, 15];
@@ -204,23 +219,23 @@ mod test {
 
     #[test]
     fn bitcoin_genesis_first_transaction() {
-        let gen = bitcoin_genesis_tx();
+        let gen = pepecoin_genesis_tx();
 
         assert_eq!(gen.version, 1);
         assert_eq!(gen.input.len(), 1);
         assert_eq!(gen.input[0].previous_output.txid, Hash::all_zeros());
         assert_eq!(gen.input[0].previous_output.vout, 0xFFFFFFFF);
         assert_eq!(serialize(&gen.input[0].script_sig),
-                   Vec::from_hex("4d04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73").unwrap());
+                   Vec::from_hex("1004ffff001d0104084e696e746f6e6466").unwrap());
 
         assert_eq!(gen.input[0].sequence, Sequence::MAX);
         assert_eq!(gen.output.len(), 1);
         assert_eq!(serialize(&gen.output[0].script_pubkey),
-                   Vec::from_hex("434104678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5fac").unwrap());
-        assert_eq!(gen.output[0].value, 50 * COIN_VALUE);
+                   Vec::from_hex("4341040184710fa689ad5023690c80f3a49c8f13f8d45b8c857fbcbc8bc4a8e4d3eb4b10f4d4604fa08dce601aaf0f470216fe1b51850b4acf21b179c45070ac7b03a9ac").unwrap());
+        assert_eq!(gen.output[0].value, 88 * COIN_VALUE);
         assert_eq!(gen.lock_time, PackedLockTime::ZERO);
 
-        assert_eq!(gen.wtxid().to_hex(), "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b");
+        assert_eq!(gen.wtxid().to_hex(), "d9b191ba029360e853f47a408365397bfa9494da371c8a56f20799e50adb2cab");
     }
 
     #[test]
@@ -229,13 +244,14 @@ mod test {
 
         assert_eq!(gen.header.version, 1);
         assert_eq!(gen.header.prev_blockhash, Hash::all_zeros());
-        assert_eq!(gen.header.merkle_root.to_hex(), "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b");
+        assert_eq!(gen.header.merkle_root.to_hex(), "696ad20e2dd4365c7459b4a4a5af743d5e92c6da3229e6532cd605f6533f2a5b");
 
-        assert_eq!(gen.header.time, 1231006505);
-        assert_eq!(gen.header.bits, 0x1d00ffff);
-        assert_eq!(gen.header.nonce, 2083236893);
-        assert_eq!(gen.header.block_hash().to_hex(), "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f");
+        assert_eq!(gen.header.time, 1386325540);
+        assert_eq!(gen.header.bits, 0x1e0ffff0);
+        assert_eq!(gen.header.nonce, 99943);
+        assert_eq!(gen.header.block_hash().to_hex(), "6b2cd9cb6907608da429a18776cb16c369278e8e61ed5c6113f5c6005cc17298");
     }
+
 
     #[test]
     fn testnet_genesis_full_block() {
@@ -265,6 +281,12 @@ mod test {
     // representing the genesis block is the same as that created by hashing the genesis block.
     fn chain_hash_and_genesis_block(network: Network) {
         use crate::hashes::sha256;
+
+        if network == Network::Bitcoin {
+            // For Pepecoin, GENESIS_BLOCK_HASH_BITCOIN is the Scrypt hash,
+            // while block_hash() returns the Sha256d hash. Skip this check.
+            return;
+        }
 
         // The genesis block hash is a double-sha256 and it is displayed backwards.
         let genesis_hash = genesis_block(network).block_hash();
@@ -301,7 +323,7 @@ mod test {
     #[test]
     fn mainnet_chain_hash_test_vector() {
         let got = ChainHash::using_genesis_block(Network::Bitcoin).to_hex();
-        let want = "6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000";
+        let want = "7f90c871f6b243764103368903a5df5569801a38535e87b93787488385972669";
         assert_eq!(got, want);
     }
 }
